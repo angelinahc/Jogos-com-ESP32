@@ -1,0 +1,117 @@
+from machine import Pin
+import time
+import random
+
+# ------------------- CONFIGURAÇÃO DE PINOS -------------------
+# Mapeamento: 1=Vermelho, 2=Azul, 3=Verde, 4=Amarelo
+
+LEDS = {
+    1: Pin(5,  Pin.OUT, value=0), # Vermelho
+    2: Pin(19, Pin.OUT, value=0), # Azul
+    3: Pin(18, Pin.OUT, value=0), # Verde
+    4: Pin(21, Pin.OUT, value=0), # Amarelo
+}
+
+BOTOES = {
+    1: Pin(26, Pin.IN, Pin.PULL_UP), # Vermelho
+    2: Pin(32, Pin.IN, Pin.PULL_UP), # Azul
+    3: Pin(33, Pin.IN, Pin.PULL_UP), # Verde
+    4: Pin(25, Pin.IN, Pin.PULL_UP), # Amarelo
+}
+
+# ------------------- FUNÇÕES AUXILIARES -------------------
+
+def controlar_led(cor, estado):
+    """Controla um LED. estado=1 para LIGAR, estado=0 para DESLIGAR."""
+    if cor in LEDS:
+        LEDS[cor].value(estado)
+
+def apagar_todos_leds():
+    """Desliga todos os LEDs de uma vez."""
+    for cor in LEDS:
+        controlar_led(cor, 0)
+
+def mostrar_sequencia(sequencia):
+    """Mostra a sequência de LEDs para o jogador."""
+    time.sleep(0.5) # Pausa antes de mostrar
+    for cor in sequencia:
+        controlar_led(cor, 1)
+        time.sleep_ms(400) # Tempo que o LED fica aceso
+        apagar_todos_leds()
+        time.sleep_ms(200) # Pausa entre os LEDs
+
+def animacao_game_over():
+    """Animação de erro quando o jogador perde."""
+    for i in range(3):
+        for cor in LEDS:
+            controlar_led(cor, 1)
+        time.sleep_ms(100)
+        apagar_todos_leds()
+        time.sleep_ms(100)
+
+# ------------------- FUNÇÃO DE LEITURA ROBUSTA -------------------
+
+def esperar_apertar_botao():
+    """
+    Função robusta que espera o jogador apertar um botão.
+    - Dá feedback visual imediato.
+    - Tem um TIMEOUT para não travar o jogo.
+    - Retorna a cor pressionada ou None se der erro.
+    """
+    while True:
+        for cor, botao_pin in BOTOES.items():
+            if botao_pin.value() == 0: # Botão foi pressionado
+                controlar_led(cor, 1) # Feedback visual imediato
+                
+                # Loop para esperar o botão ser SOLTO, com timeout de 2 segundos
+                tempo_inicial = time.ticks_ms()
+                while botao_pin.value() == 0:
+                    if time.ticks_diff(time.ticks_ms(), tempo_inicial) > 2000:
+                        print(f"ERRO: Timeout! O botão {cor} parece estar preso.")
+                        apagar_todos_leds()
+                        return None # Retorna None para indicar erro
+                    time.sleep_ms(10)
+                
+                apagar_todos_leds() # Apaga o LED de feedback
+                time.sleep_ms(50) # Debounce extra
+                return cor # Retorna a cor do botão que foi apertado e solto
+
+# ------------------- LÓGICA PRINCIPAL DO JOGO -------------------
+
+def iniciar_jogo():
+    """Função principal que roda o jogo."""
+    random.seed()
+    
+    print("Jogo Genius Iniciado. Pressione qualquer botão para começar.")
+    apagar_todos_leds()
+    esperar_apertar_botao()
+
+    sequencia = []
+    
+    while True:
+        sequencia.append(random.choice(list(LEDS.keys())))
+        print(f"Memorize a sequência: {sequencia}")
+        mostrar_sequencia(sequencia)
+
+        print("Sua vez!")
+        jogador_perdeu = False
+        for cor_correta in sequencia:
+            cor_jogador = esperar_apertar_botao()
+
+            if cor_jogador is None or cor_jogador != cor_correta:
+                jogador_perdeu = True
+                break
+        
+        if jogador_perdeu:
+            print(f"Fim de jogo! Sua pontuação: {len(sequencia) - 1}")
+            animacao_game_over()
+            
+            print("\n\nPressione qualquer botão para jogar novamente.")
+            esperar_apertar_botao()
+            sequencia = []
+        else:
+            print("Correto! Próxima rodada...")
+            time.sleep(0.5)
+
+# --- Inicia o programa ---
+iniciar_jogo()
